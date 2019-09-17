@@ -53,23 +53,34 @@ public class WeatherAppModel
 					if (eElement.hasChildNodes())
 					{
 						NodeList nLocList = nNode.getChildNodes();
+						Node nLocation = null;
 						
 						for (int i = 0; i < nLocList.getLength(); i++)
 						{
-							System.out.println(nLocList.item(i));
+							Node n = nLocList.item(i);
+							
+							if (n.getNodeType() == Node.ELEMENT_NODE)
+							{
+								nLocation = n;
+								break;
+							}
 						}
 						
-						
-						try
+						if (nLocation != null) // FUCKK
 						{
-//							latitude = Float.parseFloat(nLocList.getNamedItem("latitude").getNodeValue());
-//							longitude = Float.parseFloat(nLocList.getNamedItem("longitude").getNodeValue());
-//							altitude = Float.parseFloat(nLocList.getNamedItem("altitude").getNodeValue());
-						}
-						catch (NumberFormatException e)
-						{
-							System.out.println("Error parsing places.xml\n" + e.getMessage());
-						}
+							NamedNodeMap nLocAttrib = nLocation.getAttributes();
+							
+							try
+							{
+								latitude = Float.parseFloat(nLocAttrib.getNamedItem("latitude").getNodeValue());
+								longitude = Float.parseFloat(nLocAttrib.getNamedItem("longitude").getNodeValue());
+								altitude = Float.parseFloat(nLocAttrib.getNamedItem("altitude").getNodeValue());
+							}
+							catch (NumberFormatException e)
+							{
+								System.out.println("Error parsing places.xml\n" + e.getMessage());
+							}
+						}					
 						
 						Locality loc = new Locality(name, latitude, longitude, altitude);
 						places.add(loc);
@@ -81,11 +92,6 @@ public class WeatherAppModel
 		catch (Exception e)
 		{
 			e.printStackTrace();
-		}
-		
-		for (int i = 0; i < places.size(); i++)
-		{
-			System.out.println(places.get(i).name);
 		}
 		
 		return places.toArray(new Locality[places.size()]);

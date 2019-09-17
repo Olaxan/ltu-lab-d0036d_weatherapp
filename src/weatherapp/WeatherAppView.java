@@ -1,6 +1,7 @@
 package weatherapp;
 
 import weatherapp.WeatherAppModel;
+import weatherapp.Locality;
 
 import java.awt.BorderLayout;
 import java.awt.EventQueue;
@@ -62,8 +63,6 @@ public class WeatherAppView extends JFrame {
 		
 		System.out.println(path);
 		
-		WeatherAppModel.ReadPlaces(path + "/places.xml");
-		
 		setTitle("OlaxaCo Weather-o-Matic");
 		setResizable(false);
 		setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
@@ -112,23 +111,19 @@ public class WeatherAppView extends JFrame {
 		scrollPane.setViewportView(table);
 		table.setModel(new DefaultTableModel(
 			new Object[][] {
-				{null, null, null, null},
 			},
 			new String[] {
 				"Name", "Latitude", "Longitude", "Altitude"
 			}
-		) {
-			/**
-			 * 
-			 */
-			private static final long serialVersionUID = 1L;
-			Class[] columnTypes = new Class[] {
-				String.class, Float.class, Float.class, Float.class
-			};
-			public Class getColumnClass(int columnIndex) {
-				return columnTypes[columnIndex];
-			}
-		});
+		));
+		
+		Locality[] locList = WeatherAppModel.ReadPlaces(path + "/places.xml");
+		for (int i = 0; i < locList.length; i++)
+		{
+			Locality loc = locList[i];
+			DefaultTableModel model = (DefaultTableModel) table.getModel();
+			model.addRow(new Object[] {loc.name, loc.latitude, loc.longitude, loc.altitude});
+		}
 		
 		JButton btnFetchData = new JButton("Fetch data");
 		btnFetchData.setBounds(470, 437, 114, 23);
