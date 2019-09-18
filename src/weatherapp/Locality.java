@@ -3,7 +3,7 @@ package weatherapp;
 public class Locality
 {
 	
-	public Locality(String name, float latitude, float longitude, float altitude)
+	public Locality(String name, float latitude, float longitude, int altitude)
 	{
 		super();
 		this.name = name;
@@ -15,5 +15,6 @@ public class Locality
 	public String name;
 	public float latitude;
 	public float longitude;
-	public float altitude;
+	public int altitude;
+	public long cacheTimer = 0;
 }
