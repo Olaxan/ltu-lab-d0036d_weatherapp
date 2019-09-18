@@ -3,9 +3,15 @@ package weatherapp;
 import weatherapp.Locality;
 
 import javax.xml.parsers.DocumentBuilderFactory;
+import javax.xml.xpath.XPath;
+import javax.xml.xpath.XPathConstants;
+import javax.xml.xpath.XPathExpression;
+import javax.xml.xpath.XPathExpressionException;
+import javax.xml.xpath.XPathFactory;
 import javax.xml.parsers.DocumentBuilder;
 import org.w3c.dom.Document;
 import org.w3c.dom.NodeList;
+import org.xml.sax.InputSource;
 import org.w3c.dom.Node;
 import org.w3c.dom.Element;
 import org.w3c.dom.NamedNodeMap;
@@ -16,6 +22,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.io.BufferedReader;
 import java.io.InputStreamReader;
+import java.io.StringReader;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import javax.swing.JTable;
@@ -26,8 +33,9 @@ public class WeatherAppModel
 	
 	ArrayList<Locality> places = new ArrayList<Locality>();
 	Map<Integer, String> cache = new HashMap<Integer, String>();
+	String[] activeForecast = new String[24];
 	
-	int cacheTimeMS = 5000;
+	int cacheTime = 60;
 	
 	public int load(String path)
 	{
@@ -41,12 +49,8 @@ public class WeatherAppModel
 			DocumentBuilder dBuilder = dbFactory.newDocumentBuilder();
 			Document doc = dBuilder.parse(fXmlFile);
 			doc.getDocumentElement().normalize();
-
-			System.out.println("Root element :" + doc.getDocumentElement().getNodeName());
 					
 			NodeList nList = doc.getElementsByTagName("locality");
-					
-			System.out.println("----------------------------");
 
 			for (int temp = 0; temp < nList.getLength(); temp++)
 			{
@@ -129,6 +133,7 @@ public class WeatherAppModel
 		loc.latitude = latitude;
 		loc.longitude = longitude;
 		loc.altitude = altitude;
+		loc.cacheTimer = 0;
 	}
 	
 	public void addToTable(JTable jTable)
@@ -147,12 +152,12 @@ public class WeatherAppModel
 	
 	
 	
-	public int getCacheTimeMS() {
-		return cacheTimeMS;
+	public int setCacheTimeSeconds() {
+		return cacheTime;
 	}
 
-	public void setCacheTimeMS(int cacheTimeMS) {
-		this.cacheTimeMS = cacheTimeMS;
+	public void setCacheTimeSeconds(int cacheTime) {
+		this.cacheTime = cacheTime;
 	}
 	
 	public static String fetchWeatherData(float latitude, float longitude, int altitude) throws Exception
@@ -194,21 +199,158 @@ public class WeatherAppModel
 		return fetchWeatherData(loc.latitude, loc.longitude, loc.altitude);
 	}
 	
-	public String fetchWeatherData(int index) throws Exception
+	public void fetchWeatherData(int index) throws Exception
 	{
 		Locality loc = places.get(index);
 		if (loc.cacheTimer < System.currentTimeMillis())
 		{
 			System.out.println("Fetching data for index " + index + " from remote host...");
-			loc.cacheTimer = System.currentTimeMillis() + cacheTimeMS;
+			loc.cacheTimer = System.currentTimeMillis() + cacheTime * 1000;
 			String data = fetchWeatherData(loc);
 			cache.put(index, data);
-			return data;
+			parseResponse(data);
 		}
 		else
 		{
 			System.out.println("Fetching data for index " + index + " from cache...");
-			return cache.get(index);
+			parseResponse(cache.get(index));
 		}
+	}
+	
+	private static Document convertStringToXMLDocument(String xmlString)
+    {
+        //Parser that produces DOM object trees from XML content
+        DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
+         
+        //API to obtain DOM Document instance
+        DocumentBuilder builder = null;
+        try
+        {
+            //Create DocumentBuilder with default configuration
+            builder = factory.newDocumentBuilder();
+             
+            //Parse the content to Document object
+            Document doc = builder.parse(new InputSource(new StringReader(xmlString)));
+            return doc;
+        }
+        catch (Exception e)
+        {
+            e.printStackTrace();
+        }
+        return null;
+    }
+	
+	public void parseResponse(String xml)
+	{
+		System.out.println("Parsing...");
+		Document doc = convertStringToXMLDocument(xml);
+		doc.getDocumentElement().normalize();
+				
+		NodeList nList = doc.getElementsByTagName("time");
+		
+		Element timeElement;
+		Node timeNode;
+		String from;
+		String to;
+		int count = 0;
+		
+		for (int i = 0; i < nList.getLength(); i++)
+		{
+			timeNode = nList.item(i);
+			
+			if (timeNode.getNodeType() == Node.ELEMENT_NODE)
+			{
+
+				timeElement = (Element) timeNode;
+				from = timeElement.getAttribute("from");
+				to = timeElement.getAttribute("to");
+				
+				if (from.equals(to))
+				{
+					activeForecast[count] = parseForecastNode(timeNode);
+					count++;
+				}
+			}
+			
+			if (count == 24)
+				break;
+		}
+
+	}
+	
+	public String parseForecastNode(Node node)
+	{
+		StringBuilder ss = new StringBuilder();
+		
+		Node locNode = getFirstChildElement(node);
+		
+		if (locNode != null)
+		{
+			ArrayList<Node> weatherNodes = getChildElements(locNode);
+			
+			for (Node weatherNode : weatherNodes)
+			{
+				ss.append(weatherNode.getNodeName().toUpperCase() + ": " + joinAttributes(weatherNode));
+				ss.append(System.lineSeparator());
+			}
+		}
+		
+		return ss.toString();
+	}
+	
+	public Node getFirstChildElement(Node node)
+	{
+		NodeList nodes = node.getChildNodes();
+		
+		for (int i = 0; i < nodes.getLength(); i++)
+		{
+			if (nodes.item(i).getNodeType() == Node.ELEMENT_NODE)
+				return nodes.item(i);
+		}
+		
+		return null;
+	}
+	
+	public ArrayList<Node> getChildElements(Node node)
+	{
+		ArrayList<Node> nodes = new ArrayList<Node>();
+		
+		NodeList children = node.getChildNodes();
+		
+		for (int i = 0; i < children.getLength(); i++)
+		{
+			if (children.item(i).getNodeType() == Node.ELEMENT_NODE)
+				nodes.add(children.item(i));
+		}
+		
+		return nodes;
+	}
+	
+	public String joinAttributes(Node node)
+	{
+		StringBuilder ss = new StringBuilder();
+		
+		NamedNodeMap nMap = node.getAttributes();
+		
+		Node mapNode;
+		for (int i = 0; i < nMap.getLength(); i++)
+		{
+			mapNode = nMap.item(i);
+			
+			if (mapNode.getNodeName().equals("id"))
+				continue;
+			
+			ss.append(mapNode.getNodeValue());
+			
+			if (i < nMap.getLength() - 1)
+				ss.append(", ");
+		}
+		
+		return ss.toString();
+	}
+	
+	public String getForecast(int hour)
+	{
+		return activeForecast[hour];
 	}
 }

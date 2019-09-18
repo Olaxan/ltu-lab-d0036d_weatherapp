@@ -21,8 +21,8 @@ import javax.swing.JSpinner;
 import javax.swing.event.*;
 import javax.swing.table.TableModel;
 import javax.swing.JSlider;
-import javax.swing.SwingConstants;
 import javax.swing.JTextPane;
+import javax.swing.border.BevelBorder;
 
 public class WeatherAppView extends JFrame implements TableModelListener {
 
@@ -36,6 +36,7 @@ public class WeatherAppView extends JFrame implements TableModelListener {
 	
 	WeatherAppModel appModel;
 	Boolean isInitialized = false;
+	Integer selected = -1;
 
 	/**
 	 * Launch the application.
@@ -98,43 +99,24 @@ public class WeatherAppView extends JFrame implements TableModelListener {
 		{
 			public void actionPerformed(ActionEvent arg0)
 			{
-				
-				int selected = table.getSelectedRow();
-				
 				if (selected != -1)
 				{
+					int temp = selected;
 					DefaultTableModel model = (DefaultTableModel) table.getModel();
 					model.removeRow(selected);
 					
 					if (table.getRowCount() > 0)
 					{
-						int next = selected == 0 ? 0 : selected - 1;
+						int next = temp == 0 ? 0 : temp - 1;
 						table.setRowSelectionInterval(next, next);
 					}
+					else selected = -1;
 				}
 			}
 		});
 		
 		btnRemove.setBounds(407, 159, 88, 23);
 		contentPane.add(btnRemove);
-		
-		JScrollPane scrollPane = new JScrollPane();
-		scrollPane.setBounds(10, 11, 574, 137);
-		contentPane.add(scrollPane);
-		
-		table = new JTable();
-		table.setFillsViewportHeight(true);
-		table.setAutoResizeMode(JTable.AUTO_RESIZE_LAST_COLUMN);
-		scrollPane.setViewportView(table);
-		table.setModel(new DefaultTableModel(
-			new Object[][] {
-			},
-			new String[] {
-				"Name", "Latitude", "Longitude", "Altitude"
-			}
-		));
-		
-		table.getModel().addTableModelListener(this);
 		
 		JScrollPane scrollPane_1 = new JScrollPane();
 		scrollPane_1.setBounds(10, 193, 574, 233);
@@ -146,29 +128,68 @@ public class WeatherAppView extends JFrame implements TableModelListener {
 		txtrResult.setText("Select a location from the list");
 		scrollPane_1.setViewportView(txtrResult);
 		
+		JScrollPane scrollPane = new JScrollPane();
+		scrollPane.setBounds(10, 11, 574, 137);
+		contentPane.add(scrollPane);
+		
+		JPanel panel = new JPanel();
+		panel.setBorder(new BevelBorder(BevelBorder.LOWERED, null, null, null, null));
+		panel.setBounds(357, 159, 40, 20);
+		contentPane.add(panel);
+		panel.setLayout(null);
+		
+		JTextPane txtpnHour = new JTextPane();
+		txtpnHour.setOpaque(false);
+		txtpnHour.setBounds(0, 0, 40, 20);
+		panel.add(txtpnHour);
+		txtpnHour.setText("1");
+		
 		JSlider slider = new JSlider();
 		slider.setEnabled(false);
 		slider.setPaintLabels(true);
 		slider.setSnapToTicks(true);
 		slider.setPaintTicks(true);
 		slider.setValue(0);
-		slider.setMaximum(24);
-		slider.setBounds(10, 159, 397, 23);
+		slider.setMaximum(23);
+		slider.setBounds(10, 159, 337, 23);
 		contentPane.add(slider);
 		slider.addChangeListener(new ChangeListener() 
 		{
 		      public void stateChanged(ChangeEvent e) 
 		      {
-		    	  System.out.println("yas " + slider.getValue());
+		    	  txtrResult.setText(appModel.getForecast(slider.getValue()));
+		    	  txtpnHour.setText(Integer.toString(slider.getValue() + 1));
 		      }
 		});
 		
-		JButton btnFetchData = new JButton("Fetch data");
-		btnFetchData.addActionListener(new ActionListener()
+		table = new JTable();
+		table.setFillsViewportHeight(true);
+		table.setAutoResizeMode(JTable.AUTO_RESIZE_LAST_COLUMN);
+		scrollPane.setViewportView(table);
+		table.setModel(new DefaultTableModel(
+			new Object[][] {
+			},
+			new String[] {
+				"Name", "Latitude", "Longitude", "Altitude"
+			}
+		) {
+			Class[] columnTypes = new Class[] {
+				String.class, Float.class, Float.class, Integer.class
+			};
+			public Class getColumnClass(int columnIndex) {
+				return columnTypes[columnIndex];
+			}
+		});
+		
+		table.getModel().addTableModelListener(this);
+		table.getSelectionModel().addListSelectionListener(new ListSelectionListener()
 		{
-			public void actionPerformed(ActionEvent arg0)
-			{
-				int selected = table.getSelectedRow();
+			public void valueChanged(ListSelectionEvent e) 
+		    {
+				if (e.getValueIsAdjusting())
+					return;
+				
+				selected = table.getRowCount() > 0 ? table.getSelectedRow() : -1;
 				
 				txtrResult.setText("Working...");
 				
@@ -176,23 +197,23 @@ public class WeatherAppView extends JFrame implements TableModelListener {
 				{
 					try
 					{
-						txtrResult.setText(appModel.fetchWeatherData(selected));
+						appModel.fetchWeatherData(selected);
+						txtrResult.setText(appModel.getForecast(0));
+						slider.setValue(0);
 						slider.setEnabled(true);
 						return;
 					} 
-					catch (Exception e)
+					catch (Exception ex)
 					{
-						txtrResult.setText(e.getMessage());
+						txtrResult.setText(ex.getMessage());
 					}
 				}
 				else
 					txtrResult.setText("Please select a location from the list.");
 				
 				slider.setEnabled(false);
-			}
+		    }
 		});
-		btnFetchData.setBounds(470, 437, 114, 23);
-		contentPane.add(btnFetchData);
 		
 		JSpinner spinCacheTime = new JSpinner();
 		spinCacheTime.setBounds(99, 438, 79, 20);
@@ -201,7 +222,7 @@ public class WeatherAppView extends JFrame implements TableModelListener {
 		{
 		      public void stateChanged(ChangeEvent e) 
 		      {
-		    	  appModel.setCacheTimeMS((Integer) spinCacheTime.getValue());
+		    	  appModel.setCacheTimeSeconds((Integer) spinCacheTime.getValue());
 		      }
 		});
 		
@@ -209,12 +230,12 @@ public class WeatherAppView extends JFrame implements TableModelListener {
 		lblCacheTime.setBounds(10, 441, 79, 14);
 		contentPane.add(lblCacheTime);
 		
-		JLabel lblSeconds = new JLabel("MS");
-		lblSeconds.setBounds(188, 441, 272, 14);
+		JLabel lblSeconds = new JLabel("seconds");
+		lblSeconds.setBounds(188, 441, 396, 14);
 		contentPane.add(lblSeconds);
 		
 		initModel();
-		spinCacheTime.setValue(appModel.getCacheTimeMS());
+		spinCacheTime.setValue(appModel.setCacheTimeSeconds());
 	}
 	
 	public void tableChanged(TableModelEvent e)
